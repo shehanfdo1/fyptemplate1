@@ -1,0 +1,279 @@
+/* src/styles/Home.css */
+.home-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 50px 20px;
+  }
+  
+  .hero-section {
+    padding: 100px 0;
+  }
+  
+  /* Fading animation for the main title */
+  .animated-text {
+    font-size: 4em;
+    font-weight: 900;
+    letter-spacing: -2px;
+    animation: fadeIn 2s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .subtitle {
+    color: #aaa;
+    font-size: 1.2em;
+    margin-top: 10px;
+    animation: slideIn 1.5s ease-out 0.5s backwards;
+  }
+  
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .shop-button {
+    display: inline-block;
+    margin-top: 30px;
+    padding: 12px 30px;
+    background-color: #4caf50; /* Green button */
+    color: #000;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+  }
+  
+  .shop-button:hover {
+    background-color: #66BB6A;
+  }
+  
+  .stats-section {
+    display: flex;
+    width: 80%;
+    max-width: 800px;
+    justify-content: space-around;
+    margin-top: 50px;
+  }
+  
+  .stat {
+    padding: 20px;
+  }
+  
+  .stat-number {
+    font-size: 2.5em;
+    font-weight: 700;
+    color: #4CAF50;
+  }
+  /* src/styles/Home.css (Confined Floating Hook Styles) */
+
+/* ... (hero-section and stats-section z-index styles remain the same) ... */
+
+
+/* --- Base Thematic Object Style (The container for positioning) --- */
+.thematic-object {
+    position: absolute; 
+    z-index: 1; 
+    opacity: 0.8; 
+    pointer-events: none; 
+    
+    /* Initial state: Hidden far above the screen */
+    transform: translateY(-200vh); 
+    
+    /* FIX: loadDown duration is 1.5s. 
+      confinedFloat starts 1.5s later, ensuring the drop finishes first.
+    */
+    animation: 
+      loadDown 1.5s ease-out forwards, 
+      confinedFloat 18s infinite ease-in-out 1.5s; 
+  }
+  
+  /* src/styles/Home.css (Unique Floating Directions) */
+
+/* ... (hero-section, stats-section, .main-content-row z-index styles remain the same) ... */
+
+
+/* --- Base Thematic Object Style (The container for positioning) --- */
+.thematic-object {
+    position: absolute; 
+    z-index: 1; 
+    opacity: 0.15; 
+    pointer-events: none; 
+    
+    /* Initial state: Hidden far above the screen */
+    transform: translateY(-200vh); 
+    
+    /* Combined animation: loadDown runs once, unique float assigned below */
+    animation: loadDown 1.5s ease-out forwards; 
+  }
+  
+  /* --- Icon Style: Size, Blur, and Color --- */
+  .object-icon {
+    font-size: 30vh; 
+    filter: blur(3px) saturate(0.7); 
+    display: block;
+  }
+  
+  /* Class to flip every other hook */
+  .thematic-object.flipped .object-icon {
+      transform: scaleX(-1); 
+  }
+  
+  /* --- Keyframe Animations --- */
+  
+  /* 1. Initial Load Down (runs once) */
+  @keyframes loadDown {
+    0% { transform: translateY(-200vh); }
+    100% { transform: translateY(0); } 
+  }
+  
+  /* --- 2. UNIQUE FLOATING KEYFRAMES --- */
+  
+  /* Hook 1: Gentle Figure-8, slow speed (20s) */
+  @keyframes confinedFloat-1 {
+    0% { transform: translate(0px, 0px) rotate(0deg); }
+    25% { transform: translate(-10px, -5px) rotate(3deg); }
+    50% { transform: translate(15px, 15px) rotate(-3deg); }
+    75% { transform: translate(5px, 20px) rotate(0deg); }
+    100% { transform: translate(0px, 0px) rotate(0deg); }
+  }
+  
+  /* Hook 2: Vertical Wobble, medium speed (16s) */
+  @keyframes confinedFloat-2 {
+    0% { transform: translate(0px, 0px) rotate(5deg); }
+    50% { transform: translate(-15px, -20px) rotate(0deg); }
+    100% { transform: translate(0px, 0px) rotate(5deg); }
+  }
+  
+  /* Hook 3: Wide Horizontal Drift, very slow speed (25s) */
+  @keyframes confinedFloat-3 {
+    0% { transform: translate(0px, 0px) rotate(-2deg); }
+    33% { transform: translate(30px, 5px) rotate(3deg); }
+    66% { transform: translate(-20px, -10px) rotate(-5deg); }
+    100% { transform: translate(0px, 0px) rotate(-2deg); }
+  }
+  
+  /* Hook 4: Tight Circular Motion, fast speed (14s) */
+  @keyframes confinedFloat-4 {
+    0% { transform: translate(0px, 0px) rotate(0deg); }
+    25% { transform: translate(5px, -15px) rotate(5deg); }
+    50% { transform: translate(15px, 0px) rotate(0deg); }
+    75% { transform: translate(5px, 15px) rotate(-5deg); }
+    100% { transform: translate(0px, 0px) rotate(0deg); }
+  }
+  
+  /* Hook 5: Long Diagonal Drift, medium-slow speed (22s) */
+  @keyframes confinedFloat-5 {
+    0% { transform: translate(0px, 0px) rotate(0deg); }
+    40% { transform: translate(-20px, -10px) rotate(-3deg); }
+    80% { transform: translate(10px, 30px) rotate(3deg); }
+    100% { transform: translate(0px, 0px) rotate(0deg); }
+  }
+  
+  /* --- 3. APPLYING UNIQUE KEYFRAMES AND DELAYS --- */
+  
+  /* Hook 1: Top Left - Red */
+  .hook-1 {
+    top: 15%; 
+    left: 8%;
+    color: #1ee99b; 
+    /* Load delay | Float Name | Float Duration | Float Delay (1.5s + staggered) */
+    animation: 
+      loadDown 1.5s ease-out forwards 0s, 
+      confinedFloat-1 20s infinite ease-in-out 1.5s; 
+  }
+  
+  /* Hook 2: Mid-Left - Blue */
+  .hook-2 {
+    top: 30%;
+    left: 25%;
+    color: #2196F3; 
+    animation: 
+      loadDown 1.5s ease-out forwards 0.15s, 
+      confinedFloat-2 16s infinite ease-in-out 1.65s; 
+  }
+  
+  /* Hook 3: Center - Green */
+  .hook-3 {
+    top: 55%;
+    left: 50%;
+    transform: translateX(-50%); 
+    color: #4CAF50; 
+    animation: 
+      loadDown 1.5s ease-out forwards 0.30s, 
+      confinedFloat-3 25s infinite ease-in-out 1.80s; 
+  }
+  
+  /* Hook 4: Mid-Right - Orange */
+  .hook-4 {
+    top: 25%;
+    right: 15%;
+    color: #FF9800; 
+    animation: 
+      loadDown 1.5s ease-out forwards 0.45s, 
+      confinedFloat-4 14s infinite ease-in-out 1.95s; 
+  }
+  
+  /* Hook 5: Bottom Right - Cyan */
+  .hook-5 {
+    top: 70%; 
+    right: 5%;
+    color: #00BCD4; 
+    animation: 
+      loadDown 1.5s ease-out forwards 0.60s, 
+      confinedFloat-5 22s infinite ease-in-out 2.10s; 
+  }
+
+  /* src/styles/Home.css (New Flanking Info Box Styles) */
+
+/* 1. Container for the Three-Column Layout */
+.main-content-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px; /* Limit the row width */
+    margin: 50px auto 100px auto;
+    position: relative;
+    z-index: 10;
+}
+
+/* 2. Style for the Flanking Info Boxes */
+.info-box {
+    width: 20%; /* Give flanking columns 20% width */
+    padding: 30px 15px;
+    margin: 0 20px;
+    text-align: left;
+    height: 100%;
+    
+    /* Subtle background and border */
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.info-box h3 {
+    color: #4CAF50; /* Highlight the title */
+    font-size: 1.1em;
+    margin-bottom: 10px;
+}
+
+.info-box p {
+    color: #ccc;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+/* 3. Update Hero Section to fit in the middle column */
+.hero-section {
+    /* Set hero section to take up the remaining space (60%) */
+    width: 60%; 
+    padding: 0; /* Remove vertical padding to let it align with the boxes */
+    text-align: center;
+}

@@ -1,0 +1,40 @@
+/* src/styles/App.css */
+body {
+    background-color: #000;
+    color: #fff;
+    font-family: sans-serif;
+    margin: 0;
+    padding-top: 60px; /* Space for the fixed header */
+  }
+  
+  .header {
+    position: fixed;
+    top: 0;
+    width: 110%;
+    display: flex;
+    justify-content:space-around;
+    align-items:center;
+    padding: 15px 10px;
+    background-color: #4caf50;
+    border-bottom: 1px solid #164118;
+    z-index: 1000;
+  }
+  
+  .logo {
+    font-weight: bold;
+    font-size: 1.5em;
+    color: #070707;
+  }
+  
+  nav a {
+    color: #060606; 
+    letter-spacing: normal;
+    text-decoration: none;
+    margin-left: 25px;
+    transition: color 0.3s;
+    font-weight: 800; 
+  }
+  
+  nav a:hover {
+    color: #cc9631; /* Green highlight on hover (matching the button) */
+  }
