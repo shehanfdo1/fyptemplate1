@@ -1,26 +1,55 @@
 // src/App.js
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Detector from './pages/Detector';
-import './styles/App.css'; // For general layout
+import Login from './pages/Login';
+import Register from './pages/Register';
+import './styles/App.css';
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
+
+  useEffect(() => {
+    // Listen for changes in local storage or handle token state
+    const checkToken = () => setToken(localStorage.getItem('token'));
+    window.addEventListener('storage', checkToken);
+    return () => window.removeEventListener('storage', checkToken);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setToken(null);
+    window.location.href = '/login';
+  };
+
   return (
     <Router>
-      {/* --- Global Navigation Header --- */}
       <header className="header">
         <div className="logo">SecureLink</div>
         <nav>
           <Link to="/">Home</Link>
-          <Link to="/detector">Phishing Detector</Link>
+          {token ? (
+            <>
+              <Link to="/detector">Phishing Detector</Link>
+              <button onClick={handleLogout} style={{ marginLeft: '10px', background: 'none', border: '1px solid white', color: 'white', cursor: 'pointer' }}>Logout</button>
+            </>
+          ) : (
+            <Link to="/login">Login/Register</Link>
+          )}
         </nav>
       </header>
 
-      {/* --- Page Content Routes --- */}
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/detector" element={<Detector />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        {/* Protect /detector route */}
+        <Route
+          path="/detector"
+          element={token ? <Detector /> : <Navigate to="/login" />}
+        />
       </Routes>
     </Router>
   );

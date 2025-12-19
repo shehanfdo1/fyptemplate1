@@ -19,6 +19,26 @@ print("Original Columns:", df.columns.tolist())
 df = df.rename(columns={"Email Text": "text", "Email Type": "label"})
 df = df.dropna(subset=['text', 'label'])
 
+# --- CUSTOM DATA INJECTION ---
+try:
+    from custom_data import custom_emails
+    print(f"💉 Injecting {len(custom_emails)} custom examples...")
+    custom_df = pd.DataFrame(custom_emails)
+    # Rename columns to match the main dataframe if needed. 
+    # The main dataframe uses 'text' and 'label' now after renaming.
+    # Our custom_data.py already uses 'text' and 'label'.
+    
+    # NEW: Oversample custom data to ensure model learns it
+    custom_df = pd.concat([custom_df] * 100, ignore_index=True)
+    
+    df = pd.concat([df, custom_df], ignore_index=True)
+    print(f"📊 New dataset size: {len(df)}")
+except ImportError:
+    print("⚠️ Warning: custom_data.py not found. skipping injection.")
+except Exception as e:
+    print(f"⚠️ Error injecting custom data: {e}")
+# -----------------------------
+
 def clean_email_text(text):
     text = str(text).lower()
     text = re.sub(r'http\S+', ' ', text)  # remove URLs
@@ -52,13 +72,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # 4. TF-IDF Vectorization (Improved parameters)
-# min_df=5 ignores words that only appear in a few emails (noise reduction)
-vectorizer = TfidfVectorizer(max_features=5000, stop_words='english', min_df=5, ngram_range=(1,2))
+# min_df=2 allows words that appear in at least 2 emails (better for small custom datasets)
+vectorizer = TfidfVectorizer(max_features=5000, stop_words='english', min_df=2, ngram_range=(1,2))
 X_train_vec = vectorizer.fit_transform(X_train)
 
 # 5. Logistic Regression (Added Class Weighting)
 # class_weight='balanced' helps if you have more phishing than safe emails (or vice versa)
-model = LogisticRegression(C=0.5, class_weight='balanced', max_iter=1000)
+model = LogisticRegression(C=1.0, class_weight='balanced', max_iter=1000)
 model.fit(X_train_vec, y_train)
 
 # 6. Save the new files

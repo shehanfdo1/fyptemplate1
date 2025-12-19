@@ -1,6 +1,11 @@
-flask
-flask-cors
+Flask
+Flask-Cors
 joblib
 scikit-learn
 pandas
 datasets
+pymongo
+flask-bcrypt
+flask-jwt-extended
+python-dotenv
+google-generativeai
