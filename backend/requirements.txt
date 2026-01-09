@@ -9,3 +9,7 @@ flask-bcrypt
 flask-jwt-extended
 python-dotenv
 google-generativeai
+flask-socketio
+discord.py
+python-telegram-bot
+eventlet

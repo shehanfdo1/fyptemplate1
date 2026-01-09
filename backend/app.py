@@ -8,12 +8,19 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import joblib
 import re
+from flask_socketio import SocketIO
+from listeners import DiscordMonitor, TelegramMonitor
 
 # Load env variables (for JWT_SECRET_KEY, MONGO_URI)
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Store active listener instances
+# Format: {'discord': instance, 'telegram': instance}
+active_listeners = {}
 
 # --- Configuration ---
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET', 'super-secret-key-change-this')
@@ -106,21 +113,16 @@ def extract_tokens(text):
     
     return list(tokens)
 
-# --- Phishing Detection Endpoint ---
-@app.route('/predict', methods=['POST'])
-@jwt_required()
-def predict():
+def analyze_message(text):
+    """
+    Internal helper to run prediction logic on any text.
+    Returns dict { 'prediction': str, 'confidence': str, 'raw_conf': float }
+    """
     if not model or not vectorizer:
-        return jsonify({'error': 'Model not loaded'}), 500
-        
-    data = request.get_json(force=True)
-    email_text = data.get('email', '')
+        return {'prediction': 'Error', 'confidence': 'Model not loaded', 'raw_conf': 0}
 
-    if not email_text:
-        return jsonify({'error': 'No email text provided'}), 400
-        
-    # 1. ALWAYS RUN THE AI MODEL FIRST (as requested)
-    cleaned_text = clean_email_text(email_text)
+    # 1. AI Model
+    cleaned_text = clean_email_text(text)
     X_input = vectorizer.transform([cleaned_text])
     
     prediction = model.predict(X_input)[0]
@@ -133,10 +135,9 @@ def predict():
         model_result = "Safe Message"
         model_confidence = probabilities[0]
 
-    # 2. CHECK KEYWORD PATTERNS (Secondary Verification)
-    tokens = extract_tokens(email_text)
+    # 2. Keyword Patterns (Database)
+    tokens = extract_tokens(text)
     score = 0
-    found_signatures = []
     
     if tokens:
         found_tokens = list(keywords_collection.find({"token": {"$in": tokens}}))
@@ -145,31 +146,83 @@ def predict():
             p = t_data.get('phish', 0)
             total = s + p
             if total < 2: continue 
-            
-            # +1 for Safe, -1 for Phish
             token_strength = (s - p) / total
             score += token_strength
-            found_signatures.append(t_data['token'])
 
-    print(f"📊 Model: {model_result} ({model_confidence:.2f}) | Keyword Score: {score} | Sig: {found_signatures}")
-
-    # DECISION LOGIC:
-    # If Tokens Strongly Disagree with Model, who wins?
-    # User said: "check with pkl files and then check with the custom keywords"
-    # User also said: "refere and predict the upcoming massages" (implies override)
-    # BUT user complained about Phish -> Safe override.
-    # Safe Override should ONLY happen if we have a Strong SAFE Signature (e.g. AccountID)
+    # 3. HEURISTIC FAILSAFE (Hardcoded Phishing Triggers)
+    # The ML model might miss new scams. These words are highly suspicious in this context.
+    suspicious_triggers = [
+        "winner", "congratulations", "selected", "reward", "exclusive", 
+        "gift", "hurry", "urgent", "verify", "account", "suspended",
+        "winning", "claim", "prize", "cash", "lottery"
+    ]
     
+    heuristic_score = 0
+    text_lower = text.lower()
+    for word in suspicious_triggers:
+        if word in text_lower:
+            heuristic_score += 1
+            
     final_result = model_result
-    final_conf = f"{model_confidence*100:.2f}%"
+    final_conf_str = f"{model_confidence*100:.2f}%"
 
-    if score >= 1.0 and model_result == "Phishing Message":
-        # Only override if we are VERY sure (score >= 1.0 means unanimous safe history for this token)
+    # LOGIC OVERRIDES
+    
+    # A. Heuristic Override (Catch "Winner" scams)
+    if heuristic_score >= 2 and model_result == "Safe Message":
+        final_result = "Phishing Message"
+        final_conf_str = f"95.00% (Detected {heuristic_score} suspicious keywords)"
+        
+    # B. Database Override (Trusted/Known Patterns)
+    elif score >= 1.0 and model_result == "Phishing Message":
         final_result = "Safe Message"
-        final_conf = "100.00% (Trusted Signature verified)"
+        final_conf_str = "100.00% (Trusted Signature)"
     elif score <= -1.0 and model_result == "Safe Message":
         final_result = "Phishing Message"
-        final_conf = "100.00% (Known Phishing Pattern)"
+        final_conf_str = "100.00% (Known Phishing Pattern)"
+        
+    return {
+        'prediction': final_result,
+        'confidence': final_conf_str,
+        'raw_conf': model_confidence
+    }
+
+def handle_socket_message(msg_data):
+    """
+    Callback for listeners to process messages and emit to frontend.
+    """
+    print(f"📩 Incoming from {msg_data['platform']}: {msg_data['content']}")
+    
+    # Analyze
+    analysis = analyze_message(msg_data['content'])
+    msg_data.update(analysis)
+    
+    # Emit to all connected clients
+    socketio.emit('new_message', msg_data)
+    
+    # Alert if phishing
+    if analysis['prediction'] == "Phishing Message":
+        print(f"🚨 PHISHING DETECTED: {msg_data['content']}")
+        socketio.emit('alert', msg_data)
+
+# --- Phishing Detection Endpoint ---
+@app.route('/predict', methods=['POST'])
+def predict():
+    if not model or not vectorizer:
+        return jsonify({'error': 'Model not loaded'}), 500
+        
+    data = request.get_json(force=True)
+    email_text = data.get('email', '')
+
+    if not email_text:
+        return jsonify({'error': 'No email text provided'}), 400
+        
+    # 1. ALWAYS RUN THE AI MODEL FIRST (as requested)
+    analysis = analyze_message(email_text)
+    
+    # Re-packing only what the frontend endpoint expects
+    final_result = analysis['prediction']
+    final_conf = analysis['confidence']
 
     return jsonify({
         'prediction': final_result,
@@ -219,6 +272,60 @@ def get_stats():
     count = community_data_collection.count_documents({})
     return jsonify({"community_contributions": count}), 200
 
+# --- Listener Control Endpoints ---
+
+@app.route('/api/listeners/start', methods=['POST'])
+@jwt_required()
+def start_listener():
+    data = request.get_json(force=True)
+    platform = data.get('platform') # 'discord' or 'telegram'
+    token = data.get('token')
+    
+    if not platform or not token:
+        return jsonify({"error": "Platform and token required"}), 400
+        
+    platform = platform.lower()
+    
+    if platform in active_listeners and active_listeners[platform].running:
+         return jsonify({"message": f"{platform} listener already running"}), 200
+
+    try:
+        if platform == 'discord':
+            monitor = DiscordMonitor(token, handle_socket_message)
+            monitor.start()
+            active_listeners['discord'] = monitor
+        elif platform == 'telegram':
+            monitor = TelegramMonitor(token, handle_socket_message)
+            monitor.start()
+            active_listeners['telegram'] = monitor
+        else:
+             return jsonify({"error": "Invalid platform"}), 400
+             
+        return jsonify({"message": f"Started {platform} listener"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/listeners/stop', methods=['POST'])
+@jwt_required()
+def stop_listener():
+    data = request.get_json(force=True)
+    platform = data.get('platform')
+    
+    if not platform:
+        return jsonify({"error": "Platform required"}), 400
+        
+    platform = platform.lower()
+    
+    if platform in active_listeners:
+        try:
+            active_listeners[platform].stop()
+            del active_listeners[platform]
+            return jsonify({"message": f"Stopped {platform} listener"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"error": "Listener not active"}), 404
+
 # --- Run the App ---
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    socketio.run(app, debug=True, port=5000, allow_unsafe_werkzeug=True)

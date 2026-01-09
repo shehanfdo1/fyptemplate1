@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Detector from './pages/Detector';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import LiveMonitor from './pages/LiveMonitor';
 import './styles/App.css';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
           {token ? (
             <>
               <Link to="/detector">Phishing Detector</Link>
+              <Link to="/live">Live Monitor</Link>
               <button onClick={handleLogout} style={{ marginLeft: '10px', background: 'none', border: '1px solid white', color: 'white', cursor: 'pointer' }}>Logout</button>
             </>
           ) : (
@@ -49,6 +51,10 @@ function App() {
         <Route
           path="/detector"
           element={token ? <Detector /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/live"
+          element={token ? <LiveMonitor /> : <Navigate to="/login" />}
         />
       </Routes>
     </Router>

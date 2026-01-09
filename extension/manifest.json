@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "Phishing Detector Helper",
+    "version": "1.0",
+    "description": "Injects a scan button into Telegram and Discord web to detect phishing messages.",
+    "permissions": [
+        "activeTab",
+        "scripting"
+    ],
+    "host_permissions": [
+        "*://web.telegram.org/*",
+        "*://discord.com/*",
+        "http://localhost:5000/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://web.telegram.org/*",
+                "*://discord.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "styles.css"
+            ]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
