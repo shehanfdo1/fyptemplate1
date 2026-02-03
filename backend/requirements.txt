@@ -13,7 +13,5 @@ flask-socketio
 discord.py
 discord.py
 python-telegram-bot
-gevent
-gevent-websocket
 gunicorn
 certifi
