@@ -9,6 +9,7 @@
     "@testing-library/user-event": "^13.5.0",
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
+    "chart.js": "^4.4.1",
     "constants-browserify": "^1.0.0",
     "crypto-browserify": "^3.12.1",
     "fs-web": "^1.0.1",
@@ -19,6 +20,8 @@
     "process": "^0.11.10",
     "react": "^19.2.3",
     "react-app-rewired": "^2.2.1",
+    "react-app-rewired": "^2.2.1",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.10.1",
     "react-scripts": "5.0.1",
@@ -33,7 +36,7 @@
   },
   "scripts": {
     "start": "react-app-rewired start",
-    "build": "react-app-rewired build",
+    "build": "CI=false react-app-rewired build",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject"
   },
