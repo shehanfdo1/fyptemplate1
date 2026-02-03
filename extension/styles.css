@@ -1,30 +1,155 @@
+/* Old Button - Kept just in case, but unused by new bot */
 .phishing-scan-btn {
+    display: none;
+}
+
+/* --- Draggable Bot --- */
+.draggable-bot {
     position: fixed;
-    bottom: 20px;
+    top: 100px;
     right: 20px;
-    z-index: 9999;
-    padding: 15px 25px;
+    width: 60px;
+    height: 60px;
+    background-color: #333;
+    border-radius: 50%;
+    z-index: 10000;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: grab;
+    transition: transform 0.2s, background-color 0.3s;
+    user-select: none;
+    border: 3px solid white;
+}
+
+.draggable-bot:active {
+    cursor: grabbing;
+    transform: scale(0.95);
+}
+
+.bot-icon {
+    font-size: 30px;
+}
+
+/* States */
+.safe-state {
     background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 50px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    transition: transform 0.2s, background-color 0.2s;
+    /* Green */
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
 }
 
-.phishing-scan-btn:hover {
-    background-color: #45a049;
-    transform: scale(1.05);
-}
-
-.phishing-scan-btn.scanning {
+.suspicious-state {
     background-color: #FFA500;
-    cursor: wait;
+    /* Orange */
+    box-shadow: 0 0 15px rgba(255, 165, 0, 0.6);
 }
 
+.danger-state {
+    background-color: #ff4444;
+    /* Red */
+    box-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
+    animation: danger-pulse 1s infinite;
+}
+
+.scanning-pulse {
+    animation: scanning-pulse 1.5s infinite;
+}
+
+@keyframes danger-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7);
+    }
+
+    70% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 15px rgba(255, 68, 68, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 68, 68, 0);
+    }
+}
+
+@keyframes scanning-pulse {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* --- Lobby Alerts --- */
+.lobby-alert-mark {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 14px;
+    animation: wobble 2s infinite;
+}
+
+@keyframes wobble {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    15% {
+        transform: rotate(-10deg);
+    }
+
+    30% {
+        transform: rotate(10deg);
+    }
+
+    45% {
+        transform: rotate(-10deg);
+    }
+
+    60% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+/* --- Toast Notification --- */
+.phishing-toast-alert {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #ff4444;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    z-index: 10001;
+    font-weight: bold;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* --- Existing Overlay Styles (Preserved) --- */
 .phishing-alert-overlay {
     position: fixed;
     top: 20px;
@@ -35,15 +160,20 @@
     color: white;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 80%;
+    width: 90%;
+    max-width: 600px;
 }
 
 .safe-alert-overlay {
     background-color: #4CAF50;
+}
+
+.suspicious-alert-overlay {
+    background-color: #FFA500;
 }
 
 .close-alert-btn {
@@ -54,4 +184,27 @@
     padding: 5px 15px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+.scanned-text-container {
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    max-height: 400px;
+    overflow-y: auto;
+    width: 100%;
+    font-size: 0.95rem;
+    text-align: left;
+    white-space: pre-wrap;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.highlight-phish {
+    background-color: #fff;
+    color: #d32f2f;
+    font-weight: bold;
+    border-radius: 3px;
+    padding: 2px 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }

@@ -5,7 +5,9 @@ import Home from './pages/Home';
 import Detector from './pages/Detector';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ExtensionSetup from './pages/ExtensionSetup';
 import LiveMonitor from './pages/LiveMonitor';
+import BackgroundAnimation from './components/BackgroundAnimation';
 import './styles/App.css';
 
 function App() {
@@ -27,6 +29,7 @@ function App() {
 
   return (
     <Router>
+      <BackgroundAnimation />
       <header className="header">
         <div className="logo">SecureLink</div>
         <nav>
@@ -47,6 +50,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/extension-setup" element={<ExtensionSetup />} />
         {/* Protect /detector route */}
         <Route
           path="/detector"

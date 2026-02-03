@@ -18,6 +18,14 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+@app.route('/')
+def health_check():
+    return jsonify({
+        "status": "online", 
+        "model_loaded": model is not None,
+        "active_listeners": list(active_listeners.keys())
+    }), 200
+
 # Store active listener instances
 # Format: {'discord': instance, 'telegram': instance}
 active_listeners = {}
@@ -27,7 +35,7 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET', 'super-secret-key-change-
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 315360000 # 10 years in seconds (approx)
 # In production, use os.getenv('MONGO_URI')
 # For local dev: mongodb://localhost:27017/
-mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/?serverSelectionTimeoutMS=2000')
 client = MongoClient(mongo_uri)
 db = client['phishing_db']
 users_collection = db['users']
@@ -116,30 +124,38 @@ def extract_tokens(text):
 def analyze_message(text):
     """
     Internal helper to run prediction logic on any text.
-    Returns dict { 'prediction': str, 'confidence': str, 'raw_conf': float }
+    Returns dict { 'prediction': str, 'confidence': str, 'raw_conf': float, 'keywords': list }
     """
     if not model or not vectorizer:
-        return {'prediction': 'Error', 'confidence': 'Model not loaded', 'raw_conf': 0}
+        return {'prediction': 'Error', 'confidence': 'Model not loaded', 'raw_conf': 0, 'keywords': []}
 
     # 1. AI Model
     cleaned_text = clean_email_text(text)
     X_input = vectorizer.transform([cleaned_text])
     
     prediction = model.predict(X_input)[0]
-    probabilities = model.predict_proba(X_input)[0] 
-    
-    if prediction == 1:
+    probabilities = model.predict_proba(X_input)[0]
+    phishing_prob = probabilities[1]
+
+    # Threshold Logic
+    if phishing_prob >= 0.80:
         model_result = "Phishing Message"
-        model_confidence = probabilities[1]
+        model_confidence = phishing_prob
+    elif phishing_prob >= 0.50:
+        model_result = "Suspicious Message"
+        model_confidence = phishing_prob
     else:
         model_result = "Safe Message"
+        # For safe, confidence is the Safe probability (1 - phishing)
         model_confidence = probabilities[0]
 
     # 2. Keyword Patterns (Database)
     tokens = extract_tokens(text)
     score = 0
+    matched_keywords = []
     
     if tokens:
+      try:
         found_tokens = list(keywords_collection.find({"token": {"$in": tokens}}))
         for t_data in found_tokens:
             s = t_data.get('safe', 0)
@@ -148,6 +164,13 @@ def analyze_message(text):
             if total < 2: continue 
             token_strength = (s - p) / total
             score += token_strength
+            
+            # If token leans towards phishing significantly, add to keywords
+            if token_strength < -0.1: 
+                matched_keywords.append(t_data['token'])
+      except Exception as e:
+        print(f"⚠️ DB Lookup Failed: {e}")
+        # Continue without DB keywords
 
     # 3. HEURISTIC FAILSAFE (Hardcoded Phishing Triggers)
     # The ML model might miss new scams. These words are highly suspicious in this context.
@@ -158,10 +181,14 @@ def analyze_message(text):
     ]
     
     heuristic_score = 0
+    total_suspicious_count = 0
     text_lower = text.lower()
     for word in suspicious_triggers:
         if word in text_lower:
             heuristic_score += 1
+            total_suspicious_count += text_lower.count(word)
+            if word not in matched_keywords:
+                matched_keywords.append(word)
             
     final_result = model_result
     final_conf_str = f"{model_confidence*100:.2f}%"
@@ -169,9 +196,9 @@ def analyze_message(text):
     # LOGIC OVERRIDES
     
     # A. Heuristic Override (Catch "Winner" scams)
-    if heuristic_score >= 2 and model_result == "Safe Message":
+    if heuristic_score >= 2:
         final_result = "Phishing Message"
-        final_conf_str = f"95.00% (Detected {heuristic_score} suspicious keywords)"
+        final_conf_str = f"95.00% (Detected {total_suspicious_count} suspicious keywords)"
         
     # B. Database Override (Trusted/Known Patterns)
     elif score >= 1.0 and model_result == "Phishing Message":
@@ -180,11 +207,52 @@ def analyze_message(text):
     elif score <= -1.0 and model_result == "Safe Message":
         final_result = "Phishing Message"
         final_conf_str = "100.00% (Known Phishing Pattern)"
+
+    # 4. Granular Analysis (Highlighting)
+    suspicious_snippets = []
+    lines = [line.strip() for line in text.split('\n') if len(line.strip()) > 3]
+    
+    # If text is short, just analyze the whole thing
+    if len(lines) <= 1:
+        if final_result == "Phishing Message":
+            suspicious_snippets.append(text[:300])
+    else:
+        # Analyze each segment
+        for line in lines:
+            try:
+                # Check keywords in this line
+                line_tokens = extract_tokens(line)
+                kw_hits = [k for k in matched_keywords if k in line_tokens] if matched_keywords else []
+                # Also check heuristic triggers directly (for reliability on short texts)
+                trigger_hits = [t for t in suspicious_triggers if t in line.lower()]
+                
+                # Predict on this line
+                vec_line = vectorizer.transform([line])
+                pred_line = model.predict(vec_line)[0]
+                
+                # Include if Model says Phishing OR it has Keywords OR it matches Heuristic triggers
+                if pred_line == 1 or len(kw_hits) > 0 or len(trigger_hits) > 0:
+                    suspicious_snippets.append(line)
+            except:
+                pass
+
+    # Fallback: If no snippets found but result is Phishing
+    if not suspicious_snippets and final_result == "Phishing Message":
+        # Prefer the END of the message (most recent chat) rather than the top
+        # Or look for the segment with the highest keyword density
+        
+        # Simple heuristic: Take the last 2 non-empty lines as they are likely the new message
+        if lines:
+             suspicious_snippets.extend(lines[-2:])
+        else:
+             suspicious_snippets.append(text[-300:]) # Take end of text
         
     return {
         'prediction': final_result,
         'confidence': final_conf_str,
-        'raw_conf': model_confidence
+        'raw_conf': model_confidence,
+        'keywords': matched_keywords,
+        'snippets': suspicious_snippets
     }
 
 def handle_socket_message(msg_data):
@@ -200,9 +268,9 @@ def handle_socket_message(msg_data):
     # Emit to all connected clients
     socketio.emit('new_message', msg_data)
     
-    # Alert if phishing
-    if analysis['prediction'] == "Phishing Message":
-        print(f"🚨 PHISHING DETECTED: {msg_data['content']}")
+    # Alert if phishing or suspicious
+    if analysis['prediction'] in ["Phishing Message", "Suspicious Message"]:
+        print(f"🚨 ALERT ({analysis['prediction']}): {msg_data['content']}")
         socketio.emit('alert', msg_data)
 
 # --- Phishing Detection Endpoint ---
@@ -212,10 +280,13 @@ def predict():
         return jsonify({'error': 'Model not loaded'}), 500
         
     data = request.get_json(force=True)
-    email_text = data.get('email', '')
+    # Support multiple keys for flexibility
+    email_text = data.get('email') or data.get('text') or data.get('message') or ''
+    url = data.get('url', '')
+    platform = data.get('platform', 'Web Detector')
 
     if not email_text:
-        return jsonify({'error': 'No email text provided'}), 400
+        return jsonify({'error': 'No text provided'}), 400
         
     # 1. ALWAYS RUN THE AI MODEL FIRST (as requested)
     analysis = analyze_message(email_text)
@@ -223,10 +294,30 @@ def predict():
     # Re-packing only what the frontend endpoint expects
     final_result = analysis['prediction']
     final_conf = analysis['confidence']
+    detected_keywords = analysis['keywords']
+    snippets = analysis['snippets']
+
+    # Emit Alert if Phishing or Suspicious (Automation)
+    if final_result in ["Phishing Message", "Suspicious Message"]:
+        # Use snippets for the alert content content
+        display_content = "\n---\n".join(snippets[:3]) # Show top 3 snippets
+        if not display_content: display_content = email_text[:200]
+
+        alert_data = {
+            'platform': platform,
+            'content': display_content,
+            'prediction': final_result,
+            'confidence': final_conf,
+            'url': url,
+            'timestamp': "Just Now"
+        }
+        socketio.emit('alert', alert_data)
 
     return jsonify({
         'prediction': final_result,
-        'confidence': final_conf
+        'confidence': final_conf,
+        'keywords': detected_keywords,
+        'snippets': snippets
     })
 
 # --- Community Dataset Endpoint ---
@@ -271,6 +362,29 @@ def report_message():
 def get_stats():
     count = community_data_collection.count_documents({})
     return jsonify({"community_contributions": count}), 200
+
+# --- Metrics Endpoint ---
+@app.route('/api/metrics', methods=['GET'])
+def get_metrics():
+    # Return static metrics calculated on TEST SET (Evaluate Script)
+    return jsonify({
+        "accuracy": 0.9682,
+        "precision": 0.9346,
+        "recall": 0.9807,
+        "f1": 0.9571,
+        "confusion_matrix": {
+            "tn": 2811, "fp": 114,
+            "fn": 32,   "tp": 1630
+        },
+        "model_info": {
+            "algorithm": "Logistic Regression",
+            "feature_extraction": "TF-IDF Vectorizer (n-gram 1-2)",
+            "training_samples": 18349,
+            "test_samples": 4587,
+            "total_dataset": 22936
+        },
+        "last_updated": "2025-05-20"
+    }), 200
 
 # --- Listener Control Endpoints ---
 

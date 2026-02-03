@@ -10,7 +10,9 @@
     "host_permissions": [
         "*://web.telegram.org/*",
         "*://discord.com/*",
-        "http://localhost:5000/*"
+        "*://mail.google.com/*",
+        "http://localhost:5000/*",
+        "http://127.0.0.1:5000/*"
     ],
     "background": {
         "service_worker": "background.js"
@@ -19,7 +21,8 @@
         {
             "matches": [
                 "*://web.telegram.org/*",
-                "*://discord.com/*"
+                "*://discord.com/*",
+                "*://mail.google.com/*"
             ],
             "js": [
                 "content.js"

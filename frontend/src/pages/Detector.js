@@ -52,7 +52,13 @@ const Detector = () => {
         localStorage.removeItem('username');
         window.location.href = '/login';
       } else {
-        setError('Could not connect to the analysis server.');
+        console.error("Connection error:", e);
+        // Check if it's likely a network error (server down)
+        if (e.message.includes('fetch') || e.message.includes('connect')) {
+          setError('Cannot reach server. Is the backend running?');
+        } else {
+          setError('Could not connect to the analysis server. ' + e.message);
+        }
       }
     } finally {
       setLoading(false);
@@ -90,6 +96,9 @@ const Detector = () => {
     }
     if (prediction === "Safe Message") {
       return { color: '#2ecc71', emoji: '✅' };
+    }
+    if (prediction === "Suspicious Message") {
+      return { color: '#f39c12', emoji: '⚠️' };
     }
     return { color: '#3498db', emoji: '🔍' };
   };

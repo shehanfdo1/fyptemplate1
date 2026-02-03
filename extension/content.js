@@ -1,34 +1,108 @@
 // content.js
-console.log("Phishing Detector Helper Loaded");
+console.log("Phishing Detector Helper Loaded v2.4");
 
-const BACKEND_URL = "http://localhost:5000/predict";
+const BACKEND_URL = "http://127.0.0.1:5000/predict";
+let isScanning = false;
+let lastScannedText = "";
+let debounceTimer = null;
 
-// --- UI Injection ---
-function injectButton() {
-    if (document.getElementById('phishing-scan-btn')) return;
+// Deep Linking Check
+const shouldAutoShowOverlay = window.location.href.includes('phishing_show=true');
+let hasAutoShown = false;
 
-    const btn = document.createElement('button');
-    btn.id = 'phishing-scan-btn';
-    btn.className = 'phishing-scan-btn';
-    btn.innerText = '🛡️ Scan Phishing';
-    btn.onclick = handleScan;
+// Clean the URL so a refresh doesn't trigger it again
+if (shouldAutoShowOverlay) {
+    const newUrl = window.location.href.replace(/[?&]phishing_show=true/, '');
+    window.history.replaceState({}, document.title, newUrl);
+    console.log("Detected deep link, cleaning URL to:", newUrl);
+}
 
-    document.body.appendChild(btn);
+// --- UI Injection: Draggable Bot ---
+function injectDraggableBot() {
+    if (document.getElementById('phishing-bot-overlay')) return;
+
+    const bot = document.createElement('div');
+    bot.id = 'phishing-bot-overlay';
+    bot.className = 'draggable-bot safe-state'; // Default Safe
+    bot.innerHTML = `
+        <div class="bot-icon">🛡️</div>
+        <div class="bot-status-indicator"></div>
+    `;
+
+    // Drag Logic
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    bot.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = bot.offsetLeft;
+        initialTop = bot.offsetTop;
+        bot.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        bot.style.left = `${initialLeft + dx}px`;
+        bot.style.top = `${initialTop + dy}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        bot.style.cursor = 'grab';
+    });
+
+    // Click to scan/show details
+    bot.addEventListener('click', (e) => {
+        if (isDragging) return; // Prevent click after drag
+        // Just show current status or force re-scan
+        handleScan(true);
+    });
+
+    document.body.appendChild(bot);
 }
 
 // Run injection periodically to handle SPA navigation
-setInterval(injectButton, 2000);
+setInterval(injectDraggableBot, 2000);
+setInterval(scanLobby, 3000); // Check lobby every 3 seconds
+
+// --- Automation Logic ---
+const observer = new MutationObserver((mutations) => {
+    // Debounce to prevent spamming backend on every character type
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        handleScan(false); // Auto-scan
+    }, 1500);
+});
+
+// Start observing chat container when available
+function startObserving() {
+    // Telegram Web K/A specific selectors for chat area
+    const chatContainer = document.querySelector('.chat-input-main') || document.querySelector('.bubbles-group') || document.body;
+    if (chatContainer) {
+        observer.observe(chatContainer, { childList: true, subtree: true, characterData: true });
+    }
+}
+// Try to attach observer periodically
+setInterval(startObserving, 5000);
+
 
 // --- Scraping Logic ---
 function getChatContent() {
     let content = "";
     const hostname = window.location.hostname;
 
-    // Helper to scrape by selector
-    const scrape = (selector) => {
+    // Helper to scrape by selector (Last N items only to avoid old history)
+    const scrape = (selector, limit = 5) => {
         let found = "";
-        document.querySelectorAll(selector).forEach(el => {
-            // Avoid scraping hidden elements
+        const elements = Array.from(document.querySelectorAll(selector));
+        // Take only the last 'limit' elements (most recent messages)
+        const recent = elements.slice(-limit);
+
+        recent.forEach(el => {
             if (el.offsetParent !== null) {
                 found += el.innerText + "\n";
             }
@@ -37,28 +111,30 @@ function getChatContent() {
     };
 
     if (hostname.includes('telegram.org')) {
-        // Broad strategies for Web K and Web A
-        // Web K: .message .text-content
-        // Web A: .text-content, .message
+        // Telegram Web K/A Selectors
         content += scrape('.message .text-content');
-        content += scrape('.text-content');
-        if (!content) content += scrape('.message'); // Fallback to entire message bubble
+        content += scrape('.text-content'); // Generic text wrapper
+        content += scrape('.message-content-text'); // Web A
+        content += scrape('.bubbles-group .message'); // Web K group
 
+        if (!content) {
+            // Deep fallback
+            content += scrape('div[class*="message"]');
+        }
     } else if (hostname.includes('discord.com')) {
-        // Discord: Message content usually has ID starting with message-content
         content += scrape('[id^="message-content"]');
-
-        // Fallback: Common discord message classes
         if (!content) content += scrape('div[class*="messageContent"]');
         if (!content) content += scrape('li[class*="messageListItem"] div[class*="markup"]');
+    } else if (hostname.includes('mail.google.com')) {
+        // Gmail Selectors
+        content += scrape('.a3s.aiL'); // Open email body
+        content += scrape('.ii.gt');   // Message wrapper
+        if (!content) content += scrape('div[role="listitem"]'); // Fallback
     }
 
-    // Generic Fallback: If still empty, try to get main chat containers
+    // Generic Fallback
     if (!content.trim()) {
-        console.log("Specific selectors failed. Trying generic scraping...");
-        // Fallback for any page: Get paragraphs and divs with substantial text
         document.querySelectorAll('p, div').forEach(el => {
-            // Heuristic: If it has reasonable length and looks like a message
             if (el.innerText.length > 5 && el.innerText.length < 1000 && el.offsetParent !== null) {
                 content += el.innerText + "\n";
             }
@@ -69,62 +145,121 @@ function getChatContent() {
 }
 
 // --- Action Logic ---
-async function handleScan() {
-    const btn = document.getElementById('phishing-scan-btn');
-    btn.classList.add('scanning');
-    btn.innerText = 'Scanning...';
-
+async function handleScan(isManual = false) {
     const text = getChatContent();
 
-    if (!text) {
-        alert("No visible text found to scan!");
-        resetButton(btn);
-        return;
-    }
+    // valid text?
+    if (!text || text.length < 5) return;
 
-    console.log("Sending text to background, length:", text.length);
+    // Optimization: Don't rescan exact same text unless manual click
+    if (!isManual && text === lastScannedText) return;
+    lastScannedText = text;
 
-    // Timeout Promise to prevent infinite hanging
-    const timeout = new Promise((resolve, reject) => {
-        setTimeout(() => reject(new Error("Request timed out")), 10000);
-    });
+    const bot = document.getElementById('phishing-bot-overlay');
 
-    // Send Message Promise
-    const sendMessage = new Promise((resolve, reject) => {
-        try {
-            chrome.runtime.sendMessage({ action: "scanText", text: text }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                    return;
-                }
-                if (response && response.success) {
-                    resolve(response);
-                } else {
-                    reject(new Error(response ? response.error : "Unknown backend error"));
-                }
-            });
-        } catch (err) {
-            reject(err);
-        }
-    });
+    if (bot) bot.classList.add('scanning-pulse');
+
+    console.log("Auto-scanning text length:", text.length);
 
     try {
-        const response = await Promise.race([sendMessage, timeout]);
-        showOverlay(response.data.prediction, response.data.confidence);
+        const response = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: text,
+                url: window.location.href, // Send URL for alerts
+                platform: window.location.hostname.includes('telegram') ? 'Telegram Web' :
+                    window.location.hostname.includes('discord') ? 'Discord Web' :
+                        window.location.hostname.includes('google') ? 'Gmail' : 'Web Detector'
+            })
+        });
+        const data = await response.json();
+
+        updateBotState(data.prediction, data.confidence);
+
+        // If Manual Click -> Show Overlay
+        // If Auto-Scan -> DO NOT Show Overlay (suppress), just update icon (already done above)
+        // The Backend will handle sending the socket alert to the dashboard
+        // If Manual Click -> Show Overlay
+        // If Deep Link (Monitor) -> Show Overlay (One-time)
+        // If Auto-Scan -> DO NOT Show Overlay
+        if (isManual || (shouldAutoShowOverlay && !hasAutoShown)) {
+            console.log("Showing Overlay. Reason:", isManual ? "Click" : "Deep Link");
+            showOverlay(data.prediction, data.confidence, text, data.keywords, data.snippets);
+            if (shouldAutoShowOverlay) hasAutoShown = true;
+        } else {
+            console.log("Suppressing Overlay. Auto-scan detected phishing. updateBotState called.");
+        }
+
+        // Removed local toast usage for auto-scans as requested ("do not display... until click")
     } catch (error) {
         console.error("Scan Error:", error);
-        alert("Scan Failed: " + error.message + "\n\nTip: Try refreshing the page if the extension was just reloaded.");
     } finally {
-        resetButton(btn);
+        if (bot) bot.classList.remove('scanning-pulse');
     }
 }
 
-function resetButton(btn) {
-    btn.classList.remove('scanning');
-    btn.innerText = '🛡️ Scan Phishing';
+function updateBotState(prediction, confidence) {
+    const bot = document.getElementById('phishing-bot-overlay');
+    if (!bot) return;
+
+    bot.classList.remove('safe-state', 'danger-state');
+
+    if (prediction.includes("Safe")) {
+        bot.classList.add('safe-state');
+        bot.querySelector('.bot-icon').innerText = '🛡️';
+    } else if (prediction.includes("Suspicious")) {
+        bot.classList.add('suspicious-state');
+        bot.querySelector('.bot-icon').innerText = '⚠️';
+    } else {
+        bot.classList.add('danger-state');
+        bot.querySelector('.bot-icon').innerText = '🚨';
+    }
 }
 
-function showOverlay(prediction, confidence) {
+function notifyUser(msg) {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'phishing-toast-alert';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+
+// --- Lobby Scanning Logic ---
+function scanLobby() {
+    // Only implemented for Telegram Web K for demo proof-of-concept
+    // Look for chat list items
+    const chatItems = document.querySelectorAll('.chat-list .chat-item, .sidebar-left .chat-list a');
+
+    chatItems.forEach(item => {
+        if (item.getAttribute('data-scanned') === 'true') return;
+
+        const lastMsg = item.querySelector('.last-message, .subtitle, .short-message');
+        if (lastMsg) {
+            const text = lastMsg.innerText;
+            // Quick heuristic scan or request backend? 
+            // For performance, let's look for known keywords from local storage if possible, 
+            // or just flag suspicous links http/https
+
+            // NOTE: Full backend scan for every lobby item is expensive. 
+            // We'll mark it if it contains "http" for now as a "Check This" warning
+            if (text.includes('http') || text.includes('www') || text.toLowerCase().includes('login')) {
+                const badge = document.createElement('span');
+                badge.className = 'lobby-alert-mark';
+                badge.innerText = '⚠️';
+                badge.title = 'Contains link or keyword - Be Careful';
+                item.appendChild(badge);
+            }
+            item.setAttribute('data-scanned', 'true');
+        }
+    });
+}
+
+
+// Updated signature to accept snippets
+function showOverlay(prediction, confidence, fullText, keywords, snippets) {
     // Remove existing
     const existing = document.getElementById('phishing-alert-overlay');
     if (existing) existing.remove();
@@ -133,13 +268,58 @@ function showOverlay(prediction, confidence) {
     overlay.id = 'phishing-alert-overlay';
 
     const isSafe = prediction.includes("Safe");
-    overlay.className = `phishing-alert-overlay ${isSafe ? 'safe-alert-overlay' : ''}`;
+    const isSuspicious = prediction.includes("Suspicious");
+
+    let overlayClass = "";
+    if (isSafe) overlayClass = "safe-alert-overlay";
+    else if (isSuspicious) overlayClass = "suspicious-alert-overlay";
+
+    overlay.className = `phishing-alert-overlay ${overlayClass}`;
+
+    // Highlight Keywords Logic
+    const escapeHtml = (unsafe) => {
+        return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    let contentHtml = "";
+
+    // Specific Snippets Logic
+    if (snippets && snippets.length > 0) {
+        contentHtml = snippets.map(snippet => {
+            let processed = escapeHtml(snippet);
+            if (keywords) {
+                keywords.forEach(kw => {
+                    const regex = new RegExp(`(${kw})`, 'gi');
+                    processed = processed.replace(regex, '<span class="highlight-phish">$1</span>');
+                });
+            }
+            return `<div class="phish-snippet">${processed}</div>`;
+        }).join('<hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;">');
+    } else {
+        // Fallback to full text
+        contentHtml = escapeHtml(fullText || "");
+        if (keywords) {
+            keywords.forEach(kw => {
+                const regex = new RegExp(`(${kw})`, 'gi');
+                contentHtml = contentHtml.replace(regex, '<span class="highlight-phish">$1</span>');
+            });
+        }
+    }
+
+    let title = "🚨 PHISHING DETECTED";
+    if (isSafe) title = "✅ SAFE";
+    else if (isSuspicious) title = "⚠️ SUSPICIOUS";
 
     overlay.innerHTML = `
-        <h2>${isSafe ? '✅ SAFE' : '🚨 PHISHING DETECTED'}</h2>
+        <h2>${title}</h2>
         <p>Confidence: ${confidence}</p>
-        <button class="close-alert-btn" onclick="document.getElementById('phishing-alert-overlay').remove()">Close</button>
+        <div class="scanned-text-container">
+            <strong>Suspicious Content:</strong><br>
+            ${contentHtml}
+        </div>
+        <button class="close-alert-btn" id="close-overlay-btn">Close</button>
     `;
 
     document.body.appendChild(overlay);
+    document.getElementById('close-overlay-btn').onclick = () => overlay.remove();
 }

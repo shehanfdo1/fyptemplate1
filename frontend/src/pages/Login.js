@@ -29,7 +29,15 @@ function Login() {
     };
 
     return (
-        <div className="auth-container" style={{ padding: '2rem', maxWidth: '400px', margin: 'auto' }}>
+        <div className="auth-container" style={{
+            padding: '2rem',
+            maxWidth: '400px',
+            margin: '100px auto',
+            background: '#1e293b',
+            borderRadius: '10px',
+            border: '1px solid #334155',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)'
+        }}>
             <h2>Login to SecureLink</h2>
             {error && <p style={{ color: 'red' }}>{error}</p>}
             <form onSubmit={handleLogin}>
