@@ -10,6 +10,7 @@ import joblib
 import re
 from flask_socketio import SocketIO
 from listeners import DiscordMonitor, TelegramMonitor
+import certifi
 
 # Load env variables (for JWT_SECRET_KEY, MONGO_URI)
 load_dotenv()
@@ -36,7 +37,7 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 315360000 # 10 years in seconds (approx
 # In production, use os.getenv('MONGO_URI')
 # For local dev: mongodb://localhost:27017/
 mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/?serverSelectionTimeoutMS=2000')
-client = MongoClient(mongo_uri)
+client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 db = client['phishing_db']
 users_collection = db['users']
 community_data_collection = db['community_data']
@@ -442,4 +443,4 @@ def stop_listener():
 
 # --- Run the App ---
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
