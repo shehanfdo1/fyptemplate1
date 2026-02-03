@@ -1,7 +1,9 @@
 // src/pages/Home.js (Modified for Flanking Info Boxes)
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/Home.css';
+import { Line } from 'react-chartjs-2';
+import config from '../config';
 
 
 
@@ -82,10 +84,10 @@ const ModelInfoTable = ({ info }) => {
 };
 
 const Home = () => {
-  const [metrics, setMetrics] = React.useState(null);
+  const [metrics, setMetrics] = useState(null);
 
-  React.useEffect(() => {
-    fetch('http://127.0.0.1:5000/api/metrics')
+  useEffect(() => {
+    fetch(`${config.API_BASE_URL}/api/metrics`)
       .then(res => res.json())
       .then(data => setMetrics(data))
       .catch(err => console.error("Failed to load metrics", err));

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
+import config from '../config';
 
-const socket = io('http://127.0.0.1:5000');
+const socket = io(config.API_BASE_URL);
 
 const LiveMonitor = () => {
     const [status, setStatus] = useState({});
@@ -58,7 +59,7 @@ const LiveMonitor = () => {
         }
 
         try {
-            const res = await fetch(`http://127.0.0.1:5000/api/listeners/${action}`, {
+            const res = await fetch(`${config.API_BASE_URL}/api/listeners/${action}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

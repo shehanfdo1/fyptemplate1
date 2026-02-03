@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import '../styles/App.css';
+import config from '../config';
 import { useNavigate } from 'react-router-dom';
 
 function Login() {
@@ -10,7 +12,7 @@ function Login() {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://127.0.0.1:5000/login', {
+            const response = await fetch(`${config.API_BASE_URL}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),

@@ -1,6 +1,7 @@
 // src/pages/Detector.js
 import React, { useState } from 'react';
 import '../styles/Detector.css';
+import config from '../config';
 
 const Detector = () => {
   const [emailText, setEmailText] = useState('');
@@ -9,8 +10,8 @@ const Detector = () => {
   const [error, setError] = useState(null);
   const [reportStatus, setReportStatus] = useState('');
 
-  const API_URL = 'http://127.0.0.1:5000/predict';
-  const REPORT_URL = 'http://127.0.0.1:5000/report';
+  const API_URL = `${config.API_BASE_URL}/predict`;
+  const REPORT_URL = `${config.API_BASE_URL}/report`;
 
   const handleSubmit = async () => {
     if (!emailText.trim()) {
