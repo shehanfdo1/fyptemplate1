@@ -11,7 +11,9 @@ python-dotenv
 google-generativeai
 flask-socketio
 discord.py
+discord.py
 python-telegram-bot
-eventlet
+gevent
+gevent-websocket
 gunicorn
 certifi
