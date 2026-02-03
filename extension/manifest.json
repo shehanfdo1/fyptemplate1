@@ -12,7 +12,8 @@
         "*://discord.com/*",
         "*://mail.google.com/*",
         "http://localhost:5000/*",
-        "http://127.0.0.1:5000/*"
+        "http://127.0.0.1:5000/*",
+        "https://securelink-backend-1ekd.onrender.com/*"
     ],
     "background": {
         "service_worker": "background.js"

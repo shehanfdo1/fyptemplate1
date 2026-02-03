@@ -1,7 +1,7 @@
 // content.js
 console.log("Phishing Detector Helper Loaded v2.4");
 
-const BACKEND_URL = "http://127.0.0.1:5000/predict";
+const BACKEND_URL = "https://securelink-backend-1ekd.onrender.com/predict";
 let isScanning = false;
 let lastScannedText = "";
 let debounceTimer = null;
