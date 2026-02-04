@@ -1,7 +1,7 @@
 // content.js
 console.log("Phishing Detector Helper Loaded v2.4");
 
-const BACKEND_URL = "https://securelink-backend-1ekd.onrender.com/predict";
+const BACKEND_URL = "http://localhost:5000/predict";
 let isScanning = false;
 let lastScannedText = "";
 let debounceTimer = null;
@@ -30,11 +30,13 @@ function injectDraggableBot() {
     `;
 
     // Drag Logic
-    let isDragging = false;
+    let isMouseDown = false;
+    let hasMoved = false;
     let startX, startY, initialLeft, initialTop;
 
     bot.addEventListener('mousedown', (e) => {
-        isDragging = true;
+        isMouseDown = true;
+        hasMoved = false;
         startX = e.clientX;
         startY = e.clientY;
         initialLeft = bot.offsetLeft;
@@ -43,21 +45,27 @@ function injectDraggableBot() {
     });
 
     document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
+        if (!isMouseDown) return;
+
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        bot.style.left = `${initialLeft + dx}px`;
-        bot.style.top = `${initialTop + dy}px`;
+
+        // Only consider it a move if moved more than 3 pixels (prevents jitter clicks)
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            hasMoved = true;
+            bot.style.left = `${initialLeft + dx}px`;
+            bot.style.top = `${initialTop + dy}px`;
+        }
     });
 
     document.addEventListener('mouseup', () => {
-        isDragging = false;
+        isMouseDown = false;
         bot.style.cursor = 'grab';
     });
 
     // Click to scan/show details
     bot.addEventListener('click', (e) => {
-        if (isDragging) return; // Prevent click after drag
+        if (hasMoved) return; // Prevent click after drag
         // Just show current status or force re-scan
         handleScan(true);
     });

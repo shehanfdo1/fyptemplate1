@@ -177,7 +177,15 @@ const LiveMonitor = () => {
                             <span style={{ color: '#94a3b8' }}>Open Web App</span>
                         </div>
                     </a>
-
+                    <button
+                        onClick={() => toggleBot('telegram')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                            background: status['telegram'] ? '#ef4444' : '#22c55e', color: 'white', fontWeight: 'bold'
+                        }}
+                    >
+                        {status['telegram'] ? 'Stop Bot' : 'Start Bot'}
+                    </button>
                 </div>
 
                 {/* Discord */}
@@ -193,10 +201,20 @@ const LiveMonitor = () => {
                             <span style={{ color: '#94a3b8' }}>Open Discord</span>
                         </div>
                     </a>
-
+                    <button
+                        onClick={() => toggleBot('discord')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                            background: status['discord'] ? '#ef4444' : '#22c55e', color: 'white', fontWeight: 'bold'
+                        }}
+                    >
+                        {status['discord'] ? 'Stop Bot' : 'Start Bot'}
+                    </button>
                 </div>
 
             </div>
+
+            {/* Simulate Button Removed */}
 
             <div style={{ marginTop: '50px', padding: '15px', background: '#172554', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                 <strong style={{ color: '#60a5fa' }}>💡 Reminder:</strong> Make sure the SecureLink Extension is installed and active in your browser.

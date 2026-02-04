@@ -3,6 +3,7 @@ import { TelegramClient, Api } from "telegram"; // Import Api
 import { StringSession } from "telegram/sessions";
 import DraggableBot from './DraggableBot';
 import { Buffer } from 'buffer';
+import config from '../config';
 
 // Polyfill Buffer for browser
 window.Buffer = Buffer;
@@ -139,7 +140,7 @@ const TelegramClientInternal = () => {
         if (!text || text.length < 5) return;
 
         try {
-            const response = await fetch('http://localhost:5000/predict', {
+            const response = await fetch(`${config.API_BASE_URL}/predict`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: text })
