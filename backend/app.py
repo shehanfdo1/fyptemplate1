@@ -16,7 +16,7 @@ import certifi
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/')
@@ -37,7 +37,7 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 315360000 # 10 years in seconds (approx
 # In production, use os.getenv('MONGO_URI')
 # For local dev: mongodb://localhost:27017/
 mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/?serverSelectionTimeoutMS=2000')
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+client = MongoClient(mongo_uri, tlsCAFile=certifi.where(), tlsAllowInvalidCertificates=True)
 db = client['phishing_db']
 users_collection = db['users']
 community_data_collection = db['community_data']
@@ -68,33 +68,41 @@ def clean_email_text(text):
 
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.get_json(force=True)
-    username = data.get('username')
-    password = data.get('password')
+    try:
+        data = request.get_json(force=True)
+        username = data.get('username')
+        password = data.get('password')
 
-    if not username or not password:
-        return jsonify({"error": "Username and password required"}), 400
+        if not username or not password:
+            return jsonify({"error": "Username and password required"}), 400
 
-    if users_collection.find_one({"username": username}):
-        return jsonify({"error": "User already exists"}), 400
+        if users_collection.find_one({"username": username}):
+            return jsonify({"error": "User already exists"}), 400
 
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-    users_collection.insert_one({"username": username, "password": hashed_password})
-    
-    return jsonify({"message": "User created successfully"}), 201
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        users_collection.insert_one({"username": username, "password": hashed_password})
+        
+        return jsonify({"message": "User created successfully"}), 201
+    except Exception as e:
+        print(f"Register error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json(force=True)
-    username = data.get('username')
-    password = data.get('password')
+    try:
+        data = request.get_json(force=True)
+        username = data.get('username')
+        password = data.get('password')
 
-    user = users_collection.find_one({"username": username})
-    if user and bcrypt.check_password_hash(user['password'], password):
-        access_token = create_access_token(identity=username)
-        return jsonify({"access_token": access_token, "username": username}), 200
-    
-    return jsonify({"error": "Invalid credentials"}), 401
+        user = users_collection.find_one({"username": username})
+        if user and bcrypt.check_password_hash(user['password'], password):
+            access_token = create_access_token(identity=username)
+            return jsonify({"access_token": access_token, "username": username}), 200
+        
+        return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        print(f"Login error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # --- Phishing Detection Endpoint (Protected Optional?) ---
 # Keeping open for now, or could make it jwt_required()
