@@ -104,15 +104,18 @@ function getChatContent() {
     const hostname = window.location.hostname;
 
     // Helper to scrape by selector (Last N items only to avoid old history)
-    const scrape = (selector, limit = 5) => {
+    const scrape = (selector, limit = 10) => {
         let found = "";
         const elements = Array.from(document.querySelectorAll(selector));
-        // Take only the last 'limit' elements (most recent messages)
         const recent = elements.slice(-limit);
 
         recent.forEach(el => {
             if (el.offsetParent !== null) {
-                found += el.innerText + "\n";
+                // Use innerText but replace hidden breaks/non-space whitespace to prevent split words
+                let text = el.innerText.replace(/\s+/g, ' ').trim();
+                if (text.length > 2) {
+                    found += text + "\n";
+                }
             }
         });
         return found;
@@ -124,9 +127,9 @@ function getChatContent() {
         content += scrape('.text-content'); // Generic text wrapper
         content += scrape('.message-content-text'); // Web A
         content += scrape('.bubbles-group .message'); // Web K group
+        content += scrape('.message-text'); // Fallback
 
         if (!content) {
-            // Deep fallback
             content += scrape('div[class*="message"]');
         }
     } else if (hostname.includes('discord.com')) {
@@ -134,19 +137,40 @@ function getChatContent() {
         if (!content) content += scrape('div[class*="messageContent"]');
         if (!content) content += scrape('li[class*="messageListItem"] div[class*="markup"]');
     } else if (hostname.includes('mail.google.com')) {
-        // Gmail Selectors
-        content += scrape('.a3s.aiL'); // Open email body
-        content += scrape('.ii.gt');   // Message wrapper
-        if (!content) content += scrape('div[role="listitem"]'); // Fallback
+        // Gmail: Target the active email message body specifically
+        // .a3s and .aiL are core message body classes.
+        // We also check for elements inside the message content area to avoid sidebar noise.
+        content += scrape('div[role="main"] .a3s.aiL'); 
+        content += scrape('.ii.gt .a3s');
+        if (!content) content += scrape('div[data-message-id] .a3s');
+        
+        // Gmail "Sponsored" or Ads often use different structures, but they usually have a specific role
+        if (!content) content += scrape('div[role="article"]');
     }
 
-    // Generic Fallback
+    // Generic Fallback (Only if specific selectors fail)
     if (!content.trim()) {
-        document.querySelectorAll('p, div').forEach(el => {
-            if (el.innerText.length > 5 && el.innerText.length < 1000 && el.offsetParent !== null) {
-                content += el.innerText + "\n";
+        const skipTags = ['nav', 'header', 'footer', 'aside', 'script', 'style'];
+        document.querySelectorAll('div, p, span').forEach(el => {
+            // Only scrape if it's visible, has decent text, and isn't in a skip tag
+            if (el.innerText.length > 20 && el.innerText.length < 2000 && 
+                el.offsetParent !== null && 
+                !skipTags.some(tag => el.closest(tag))) {
+                
+                // Exclude common Gmail UI text
+                const text = el.innerText.trim();
+                const uiJunk = ["Compose", "Inbox", "Starred", "Snoozed", "Sent", "Drafts", "More", "Labels", "Search", "Upgrade", "Try Gemini", "conversation opened", "skip to content"];
+                if (!uiJunk.some(j => text.toLowerCase().startsWith(j.toLowerCase()) && text.length < 100)) {
+                    content += text + "\n";
+                }
             }
         });
+
+        // CRITICAL: If the content is basically just Gmail boilerplate, discard it
+        const lower = content.toLowerCase();
+        if (lower.includes("skip to content") && lower.includes("none selected")) {
+            return ""; // Garbage dump, skip this scan
+        }
     }
 
     return content.trim();
@@ -284,50 +308,90 @@ function showOverlay(prediction, confidence, fullText, keywords, snippets) {
 
     overlay.className = `phishing-alert-overlay ${overlayClass}`;
 
-    // Highlight Keywords Logic
-    const escapeHtml = (unsafe) => {
-        return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
+    // --- DOM Building to Comply with Gmail's Trusted Types ---
+    const titleEl = document.createElement('h2');
+    titleEl.innerText = isSafe ? "✅ SAFE" : (isSuspicious ? "⚠️ SUSPICIOUS" : "🚨 PHISHING DETECTED");
+    overlay.appendChild(titleEl);
 
-    let contentHtml = "";
+    const confEl = document.createElement('p');
+    confEl.innerText = `Confidence: ${confidence}`;
+    overlay.appendChild(confEl);
 
-    // Specific Snippets Logic
-    if (snippets && snippets.length > 0) {
-        contentHtml = snippets.map(snippet => {
-            let processed = escapeHtml(snippet);
-            if (keywords) {
-                keywords.forEach(kw => {
-                    const regex = new RegExp(`(${kw})`, 'gi');
-                    processed = processed.replace(regex, '<span class="highlight-phish">$1</span>');
-                });
+    const container = document.createElement('div');
+    container.className = 'scanned-text-container';
+    
+    const strongLabel = document.createElement('strong');
+    strongLabel.innerText = "Suspicious Content:";
+    container.appendChild(strongLabel);
+    container.appendChild(document.createElement('br'));
+
+    // Use snippets from backend, only filtered for extreme junk or length
+    let filteredSnippets = (snippets || []).filter(s => {
+        if (!s || s.length < 3) return false;
+        const lower = s.toLowerCase();
+        // Only remove absolute garbage that slipped through backend
+        const isGarbage = /^\d{1,2}:\d{2}$/.test(lower.trim()) || 
+                         (lower.includes('kb') && lower.match(/\d+ kb/));
+        return !isGarbage;
+    });
+
+    if (filteredSnippets.length > 0) {
+        const sortedKws = (keywords || []).sort((a, b) => b.length - a.length);
+
+        filteredSnippets.forEach((snippet, idx) => {
+            const snippetDiv = document.createElement('div');
+            snippetDiv.className = 'phish-snippet';
+            
+            // Highlight Keywords using DOM safe methods
+            if (sortedKws.length > 0) {
+                let lastIdx = 0;
+                // Simple regex to find keywords case-insensitively
+                const kwPattern = sortedKws.filter(k => k.length > 1).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                if (kwPattern) {
+                    const regex = new RegExp(`(${kwPattern})`, 'gi');
+                    let match;
+                    while ((match = regex.exec(snippet)) !== null) {
+                        // Text before match
+                        snippetDiv.appendChild(document.createTextNode(snippet.substring(lastIdx, match.index)));
+                        // Highlighted keyword
+                        const span = document.createElement('span');
+                        span.className = 'highlight-phish';
+                        span.innerText = match[0];
+                        snippetDiv.appendChild(span);
+                        lastIdx = regex.lastIndex;
+                    }
+                    // Remaining text
+                    snippetDiv.appendChild(document.createTextNode(snippet.substring(lastIdx)));
+                } else {
+                    snippetDiv.innerText = snippet;
+                }
+            } else {
+                snippetDiv.innerText = snippet;
             }
-            return `<div class="phish-snippet">${processed}</div>`;
-        }).join('<hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;">');
+
+            container.appendChild(snippetDiv);
+            if (idx < filteredSnippets.length - 1) {
+                const hr = document.createElement('hr');
+                hr.style.cssText = "border: 0; border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;";
+                container.appendChild(hr);
+            }
+        });
     } else {
-        // Fallback to full text
-        contentHtml = escapeHtml(fullText || "");
-        if (keywords) {
-            keywords.forEach(kw => {
-                const regex = new RegExp(`(${kw})`, 'gi');
-                contentHtml = contentHtml.replace(regex, '<span class="highlight-phish">$1</span>');
-            });
-        }
+        const fallbackMsg = document.createElement('div');
+        fallbackMsg.style.marginTop = "10px";
+        fallbackMsg.innerText = isSafe ? (fullText || "").substring(0, 200) + "..." : 
+                              "Suspicious activity detected. Be cautious of links and requests for information.";
+        container.appendChild(fallbackMsg);
     }
+    overlay.appendChild(container);
 
-    let title = "🚨 PHISHING DETECTED";
-    if (isSafe) title = "✅ SAFE";
-    else if (isSuspicious) title = "⚠️ SUSPICIOUS";
-
-    overlay.innerHTML = `
-        <h2>${title}</h2>
-        <p>Confidence: ${confidence}</p>
-        <div class="scanned-text-container">
-            <strong>Suspicious Content:</strong><br>
-            ${contentHtml}
-        </div>
-        <button class="close-alert-btn" id="close-overlay-btn">Close</button>
-    `;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-alert-btn';
+    closeBtn.id = 'close-overlay-btn';
+    closeBtn.innerText = 'Close';
+    closeBtn.onclick = () => overlay.remove();
+    overlay.appendChild(closeBtn);
 
     document.body.appendChild(overlay);
-    document.getElementById('close-overlay-btn').onclick = () => overlay.remove();
 }
+

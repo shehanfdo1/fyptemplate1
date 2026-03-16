@@ -1,40 +1,82 @@
 /* src/styles/App.css */
 body {
-    background-color: #000;
+    background-color: #0c0f1d;
     color: #fff;
-    font-family: sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    padding-top: 60px; /* Space for the fixed header */
-  }
-  
-  .header {
+    padding-top: 80px; /* Space for the fixed header */
+}
+
+/* Premium Transparent Header with Blur */
+.header {
     position: fixed;
     top: 0;
-    width: 110%;
+    left: 0;
+    right: 0;
+    height: 70px;
     display: flex;
-    justify-content:space-around;
-    align-items:center;
-    padding: 15px 10px;
-    background-color: #4caf50;
-    border-bottom: 1px solid #164118;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+    background: rgba(13, 17, 33, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 1000;
-  }
-  
-  .logo {
-    font-weight: bold;
-    font-size: 1.5em;
-    color: #070707;
-  }
-  
-  nav a {
-    color: #060606; 
-    letter-spacing: normal;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+.logo {
+    font-weight: 900;
+    font-size: 1.8em;
+    background: linear-gradient(135deg, #4ade80 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+}
+
+nav {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+nav a {
+    color: rgba(255, 255, 255, 0.7);
     text-decoration: none;
-    margin-left: 25px;
-    transition: color 0.3s;
-    font-weight: 800; 
-  }
-  
-  nav a:hover {
-    color: #cc9631; /* Green highlight on hover (matching the button) */
-  }
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+nav a:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Active Link or Special Highlight */
+nav a[aria-current="page"] {
+    color: #4ade80;
+}
+
+/* Logout Button Styling */
+nav button {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+    color: #ef4444 !important;
+    padding: 8px 16px !important;
+    border-radius: 8px !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+}
+
+nav button:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
+    border-color: #ef4444 !important;
+    transform: translateY(-1px) !important;
+}

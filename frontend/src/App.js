@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ExtensionSetup from './pages/ExtensionSetup';
 import LiveMonitor from './pages/LiveMonitor';
+import Reports from './pages/Reports';
 import BackgroundAnimation from './components/BackgroundAnimation';
 import './styles/App.css';
 
@@ -36,8 +37,9 @@ function App() {
           <Link to="/">Home</Link>
           {token ? (
             <>
-              <Link to="/detector">Phishing Detector</Link>
-              <Link to="/live">Live Monitor</Link>
+                <Link to="/detector">Phishing Detector</Link>
+                <Link to="/live">Live Monitor</Link>
+                <Link to="/reports">Reports</Link>
               <button onClick={handleLogout} style={{ marginLeft: '10px', background: 'none', border: '1px solid white', color: 'white', cursor: 'pointer' }}>Logout</button>
             </>
           ) : (
@@ -59,6 +61,10 @@ function App() {
         <Route
           path="/live"
           element={token ? <LiveMonitor /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/reports"
+          element={token ? <Reports /> : <Navigate to="/login" />}
         />
       </Routes>
     </Router>

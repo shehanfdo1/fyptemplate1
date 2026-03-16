@@ -3,6 +3,10 @@ import asyncio
 import threading
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+import imaplib
+import email
+from email.header import decode_header
+import time
 
 class DiscordMonitor:
     def __init__(self, token, callback):
@@ -34,7 +38,6 @@ class DiscordMonitor:
                 return
             
             # Send to callback
-            # Note: Callback might need to be thread-safe or handle context
             self.callback({
                 'platform': 'Discord',
                 'channel': str(message.channel),
@@ -105,16 +108,79 @@ class TelegramMonitor:
             return
 
         print("Stopping Telegram Bot...")
-        # telegram.ext.Application.stop() / shutdown() are async and tricky to call from outside
-        # For this implementation, we will just set running to False and let the thread die with the server
-        # Ideally, we should properly signal the updater to stop.
-        
-        # run_polling blocks, so to stop it we might need to send a signal or use updater.stop() if available
-        # The Application class manages the loop.
-        
-        # Since we are running in a dedicated thread for "run_polling", stopping isn't clean without complex async handling
-        # For this prototype level, we accept checking 'running' state or just restarting the server
         self.running = False
-        # To truly stop: self.app.stop() inside the loop.
         asyncio.run_coroutine_threadsafe(self.app.shutdown(), self.loop)
         asyncio.run_coroutine_threadsafe(self.app.stop(), self.loop)
+
+
+class GmailMonitor:
+    def __init__(self, email_user, email_pass, callback):
+        self.email_user = email_user
+        self.email_pass = email_pass
+        self.callback = callback
+        self.running = False
+        self.thread = None
+
+    def start(self):
+        if self.running: return
+        self.running = True
+
+        def run_loop():
+            print("✅ Gmail Background Polling started")
+            while self.running:
+                try:
+                    # Connect to server
+                    mail = imaplib.IMAP4_SSL("imap.gmail.com")
+                    mail.login(self.email_user, self.email_pass)
+                    mail.select("inbox")
+
+                    # Search for unread emails
+                    status, messages = mail.search(None, "UNSEEN")
+                    if status == "OK" and messages[0]:
+                        for num in messages[0].split():
+                            if not self.running: break
+                            
+                            res, msg_data = mail.fetch(num, '(RFC822)')
+                            for response_part in msg_data:
+                                if isinstance(response_part, tuple):
+                                    msg = email.message_from_bytes(response_part[1])
+                                    subject, encoding = decode_header(msg["Subject"])[0]
+                                    if isinstance(subject, bytes):
+                                        subject = subject.decode(encoding if encoding else "utf-8")
+                                    
+                                    from_ = msg.get("From")
+                                    
+                                    # Extract pure text body
+                                    body = ""
+                                    if msg.is_multipart():
+                                        for part in msg.walk():
+                                            if part.get_content_type() == "text/plain":
+                                                body = part.get_payload(decode=True).decode()
+                                                break
+                                    else:
+                                        body = msg.get_payload(decode=True).decode()
+
+                                    full_text = f"Subject: {subject}\n\n{body}"
+                                    
+                                    self.callback({
+                                        'platform': 'Gmail',
+                                        'channel': 'Inbox',
+                                        'author': str(from_),
+                                        'content': str(full_text)[:2000],
+                                        'timestamp': time.strftime("%Y-%m-%d %H:%M:%S")
+                                    })
+                                    
+                    mail.logout()
+                except Exception as e:
+                    print(f"⚠️ Gmail Polling Error: {e}")
+
+                for _ in range(15):
+                    if not self.running: break
+                    time.sleep(1)
+
+        self.thread = threading.Thread(target=run_loop, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.running = False
+        print("Stopping Gmail Monitor...")
