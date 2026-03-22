@@ -34,7 +34,7 @@ function Login() {
                 startBot('telegram');
                 startBot('gmail');
                 
-                window.location.href = '/detector';
+                navigate('/');
             } else {
                 setError(data.error);
             }
