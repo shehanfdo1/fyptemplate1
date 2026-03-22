@@ -16,3 +16,4 @@ discord.py
 python-telegram-bot
 gunicorn
 certifi
+eventlet
