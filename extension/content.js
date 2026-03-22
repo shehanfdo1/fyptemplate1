@@ -103,8 +103,8 @@ function getChatContent() {
     let content = "";
     const hostname = window.location.hostname;
 
-    // Helper to scrape by selector (Last N items only to avoid old history)
-    const scrape = (selector, limit = 10) => {
+    // Helper to scrape by selector (Last 1 item only to enforce strict 1-to-1 parsing)
+    const scrape = (selector, limit = 1) => {
         let found = "";
         const elements = Array.from(document.querySelectorAll(selector));
         const recent = elements.slice(-limit);
@@ -138,13 +138,12 @@ function getChatContent() {
         if (!content) content += scrape('li[class*="messageListItem"] div[class*="markup"]');
     } else if (hostname.includes('mail.google.com')) {
         // Gmail: Target the active email message body specifically
-        // .a3s and .aiL are core message body classes.
-        // We also check for elements inside the message content area to avoid sidebar noise.
-        content += scrape('div[role="main"] .a3s.aiL'); 
-        content += scrape('.ii.gt .a3s');
+        // We use more specific selectors for the expanded email body to avoid nav noise.
+        content += scrape('div[role="listitem"] .a3s.aiL'); 
+        content += scrape('.ads .a3s'); // Specific message body
         if (!content) content += scrape('div[data-message-id] .a3s');
         
-        // Gmail "Sponsored" or Ads often use different structures, but they usually have a specific role
+        // Gmail "Sponsored" or Ads
         if (!content) content += scrape('div[role="article"]');
     }
 
@@ -194,36 +193,40 @@ async function handleScan(isManual = false) {
     console.log("Auto-scanning text length:", text.length);
 
     try {
-        const response = await fetch(BACKEND_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: text,
-                url: window.location.href, // Send URL for alerts
-                platform: window.location.hostname.includes('telegram') ? 'Telegram Web' :
-                    window.location.hostname.includes('discord') ? 'Discord Web' :
-                        window.location.hostname.includes('google') ? 'Gmail' : 'Web Detector'
-            })
+        chrome.storage.local.get(['phishing_username'], async (res) => {
+            const username = res.phishing_username || "";
+            
+            // Critical UX Fix: Prevent anonymous scan routing to User 1
+            if (!username.trim()) {
+                notifyUser("❌ BOT ERROR: You must enter your SecureLink dashboard username in the Extension Popup first!");
+                bot.classList.remove('scanning-pulse');
+                return;
+            }
+
+            const response = await fetch(BACKEND_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: text,
+                    url: window.location.href, // Send URL for alerts
+                    platform: window.location.hostname.includes('telegram') ? 'Telegram Web' :
+                        window.location.hostname.includes('discord') ? 'Discord Web' :
+                            window.location.hostname.includes('google') ? 'Gmail' : 'Web Detector',
+                    username: username
+                })
+            });
+            const data = await response.json();
+    
+            updateBotState(data.prediction, data.confidence);
+    
+            if (isManual || (shouldAutoShowOverlay && !hasAutoShown)) {
+                console.log("Showing Overlay. Reason:", isManual ? "Click" : "Deep Link");
+                showOverlay(data.prediction, data.confidence, text, data.keywords, data.snippets);
+                if (shouldAutoShowOverlay) hasAutoShown = true;
+            } else {
+                console.log("Suppressing Overlay. Auto-scan detected phishing. updateBotState called.");
+            }
         });
-        const data = await response.json();
-
-        updateBotState(data.prediction, data.confidence);
-
-        // If Manual Click -> Show Overlay
-        // If Auto-Scan -> DO NOT Show Overlay (suppress), just update icon (already done above)
-        // The Backend will handle sending the socket alert to the dashboard
-        // If Manual Click -> Show Overlay
-        // If Deep Link (Monitor) -> Show Overlay (One-time)
-        // If Auto-Scan -> DO NOT Show Overlay
-        if (isManual || (shouldAutoShowOverlay && !hasAutoShown)) {
-            console.log("Showing Overlay. Reason:", isManual ? "Click" : "Deep Link");
-            showOverlay(data.prediction, data.confidence, text, data.keywords, data.snippets);
-            if (shouldAutoShowOverlay) hasAutoShown = true;
-        } else {
-            console.log("Suppressing Overlay. Auto-scan detected phishing. updateBotState called.");
-        }
-
-        // Removed local toast usage for auto-scans as requested ("do not display... until click")
     } catch (error) {
         console.error("Scan Error:", error);
     } finally {
@@ -307,26 +310,48 @@ function showOverlay(prediction, confidence, fullText, keywords, snippets) {
     else if (isSuspicious) overlayClass = "suspicious-alert-overlay";
 
     overlay.className = `phishing-alert-overlay ${overlayClass}`;
+    
+    // Override styling specifically for the bare red dialog request
+    if (!isSafe) {
+        overlay.style.backgroundColor = '#8B0000'; // Dark red dialog
+        overlay.style.border = '2px solid #ff4444';
+        overlay.style.boxShadow = '0 10px 30px rgba(255, 0, 0, 0.4)';
+    }
 
-    // --- DOM Building to Comply with Gmail's Trusted Types ---
-    const titleEl = document.createElement('h2');
-    titleEl.innerText = isSafe ? "✅ SAFE" : (isSuspicious ? "⚠️ SUSPICIOUS" : "🚨 PHISHING DETECTED");
-    overlay.appendChild(titleEl);
+    const header = document.createElement('div');
+    header.className = 'phishing-overlay-header';
+    header.style.cssText = `
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        margin-bottom: 20px; 
+        border-bottom: 1px solid rgba(255,255,255,0.2); 
+        padding-bottom: 10px;
+    `;
 
-    const confEl = document.createElement('p');
-    confEl.innerText = `Confidence: ${confidence}`;
-    overlay.appendChild(confEl);
+    const titleSec = document.createElement('div');
+    titleSec.innerHTML = `
+        <div style="font-weight: 800; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 1px;">${prediction}</div>
+        <div style="font-size: 0.9rem; opacity: 0.9;">Confidence: <span style="font-weight: bold;">${confidence}</span></div>
+    `;
+    header.appendChild(titleSec);
+
+    const platformBadge = document.createElement('span');
+    platformBadge.style.cssText = 'background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;';
+    platformBadge.innerText = window.location.hostname.includes('google') ? 'GMAIL SECURE' : 'SECURELINK';
+    header.appendChild(platformBadge);
+
+    overlay.appendChild(header);
 
     const container = document.createElement('div');
     container.className = 'scanned-text-container';
-    
-    const strongLabel = document.createElement('strong');
-    strongLabel.innerText = "Suspicious Content:";
-    container.appendChild(strongLabel);
-    container.appendChild(document.createElement('br'));
+    container.style.fontSize = '1.1rem';
+    container.style.lineHeight = '1.6';
 
+    let displaySnippets = (snippets && snippets.length > 0) ? snippets : [fullText];
+    
     // Use snippets from backend, only filtered for extreme junk or length
-    let filteredSnippets = (snippets || []).filter(s => {
+    let filteredSnippets = displaySnippets.filter(s => {
         if (!s || s.length < 3) return false;
         const lower = s.toLowerCase();
         // Only remove absolute garbage that slipped through backend
@@ -335,32 +360,40 @@ function showOverlay(prediction, confidence, fullText, keywords, snippets) {
         return !isGarbage;
     });
 
-    if (filteredSnippets.length > 0) {
-        const sortedKws = (keywords || []).sort((a, b) => b.length - a.length);
+    if (filteredSnippets.length === 0) filteredSnippets = [fullText.substring(0, 300) + "..."];
 
-        filteredSnippets.forEach((snippet, idx) => {
-            const snippetDiv = document.createElement('div');
-            snippetDiv.className = 'phish-snippet';
-            
+    const sortedKws = (keywords || []).filter(k => k && k.length > 1).sort((a, b) => b.length - a.length);
+
+    filteredSnippets.forEach((snippet, idx) => {
+        const snippetDiv = document.createElement('div');
+        snippetDiv.className = 'phish-snippet';
+        
+        try {
             // Highlight Keywords using DOM safe methods
             if (sortedKws.length > 0) {
                 let lastIdx = 0;
-                // Simple regex to find keywords case-insensitively
-                const kwPattern = sortedKws.filter(k => k.length > 1).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-                if (kwPattern) {
+                // Escape regex special chars and join
+                const kwPattern = sortedKws.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                
+                if (kwPattern.trim()) {
                     const regex = new RegExp(`(${kwPattern})`, 'gi');
                     let match;
-                    while ((match = regex.exec(snippet)) !== null) {
-                        // Text before match
+                    let safetyCounter = 0;
+                    
+                    while ((match = regex.exec(snippet)) !== null && safetyCounter < 500) {
+                        safetyCounter++;
+                        // Prevent infinite loop on zero-width matches
+                        if (match.index === regex.lastIndex) {
+                            regex.lastIndex++;
+                        }
+                        
                         snippetDiv.appendChild(document.createTextNode(snippet.substring(lastIdx, match.index)));
-                        // Highlighted keyword
                         const span = document.createElement('span');
-                        span.className = 'highlight-phish';
+                        span.style.cssText = 'background: #ff4444; color: white; padding: 2px 4px; border-radius: 4px; font-weight: bold; border: 1px solid white;';
                         span.innerText = match[0];
                         snippetDiv.appendChild(span);
                         lastIdx = regex.lastIndex;
                     }
-                    // Remaining text
                     snippetDiv.appendChild(document.createTextNode(snippet.substring(lastIdx)));
                 } else {
                     snippetDiv.innerText = snippet;
@@ -368,21 +401,19 @@ function showOverlay(prediction, confidence, fullText, keywords, snippets) {
             } else {
                 snippetDiv.innerText = snippet;
             }
+        } catch (e) {
+            console.error("Highlighting error:", e);
+            snippetDiv.innerText = snippet;
+        }
 
-            container.appendChild(snippetDiv);
-            if (idx < filteredSnippets.length - 1) {
-                const hr = document.createElement('hr');
-                hr.style.cssText = "border: 0; border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;";
-                container.appendChild(hr);
-            }
-        });
-    } else {
-        const fallbackMsg = document.createElement('div');
-        fallbackMsg.style.marginTop = "10px";
-        fallbackMsg.innerText = isSafe ? (fullText || "").substring(0, 200) + "..." : 
-                              "Suspicious activity detected. Be cautious of links and requests for information.";
-        container.appendChild(fallbackMsg);
-    }
+        container.appendChild(snippetDiv);
+        if (idx < filteredSnippets.length - 1) {
+            const hr = document.createElement('hr');
+            hr.style.cssText = "border: 0; border-top: 1px dashed rgba(255,255,255,0.3); margin: 15px 0;";
+            container.appendChild(hr);
+        }
+    });
+
     overlay.appendChild(container);
 
     const closeBtn = document.createElement('button');

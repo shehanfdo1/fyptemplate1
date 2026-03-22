@@ -111,26 +111,50 @@ const DraggableBot = ({ currentText, onScan, scanResult }) => {
             </div>
 
             {expanded && (
-                <div style={overlayStyle}>
-                    <h2 style={{ color: status === 'danger' ? '#ff4444' : '#4CAF50' }}>
-                        {status === 'danger' ? 'PHISHING DETECTED' : 'SAFE'}
-                    </h2>
+                <div style={{...overlayStyle, backgroundColor: status === 'danger' ? '#8B0000' : '#1e293b', border: status === 'danger' ? '2px solid #ff4444' : '2px solid #4CAF50'}}>
                     {scanResult && (
-                        <>
-                            <p>Confidence: {scanResult.confidence}</p>
-                            <div style={{
-                                background: '#222',
-                                padding: '10px',
-                                borderRadius: '5px',
-                                maxHeight: '200px',
-                                overflowY: 'auto',
-                                marginTop: '10px',
-                                textAlign: 'left',
-                                whiteSpace: 'pre-wrap'
-                            }}>
-                                {currentText}
+                        <div style={{ 
+                            marginBottom: '15px', 
+                            borderBottom: '1px solid rgba(255,255,255,0.2)', 
+                            paddingBottom: '10px', 
+                            textAlign: 'left' 
+                        }}>
+                            <div style={{ fontWeight: '800', fontSize: '1.2rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                {scanResult.prediction}
                             </div>
-                        </>
+                            <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                                Confidence: <span style={{ fontWeight: 'bold' }}>{scanResult.confidence}</span>
+                            </div>
+                        </div>
+                    )}
+                    {scanResult && (
+                        <div style={{
+                            fontSize: '1.2rem',
+                            lineHeight: '1.6',
+                            textAlign: 'left',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            color: 'white'
+                        }}>
+                            {(() => {
+                                const kws = scanResult.keywords || [];
+                                const text = currentText || "";
+                                if (kws.length === 0) return <span>{text}</span>;
+                                
+                                const sortedKws = [...kws].sort((a, b) => b.length - a.length);
+                                const pattern = sortedKws.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                                const regex = new RegExp(`(${pattern})`, 'gi');
+                                
+                                const parts = text.split(regex);
+                                return parts.map((part, i) => {
+                                    const isMatch = sortedKws.some(k => k.toLowerCase() === part.toLowerCase());
+                                    if (isMatch) {
+                                        return <span key={i} style={{ backgroundColor: '#ff4444', color: 'white', padding: '2px 4px', borderRadius: '4px', fontWeight: 'bold', border: '1px solid white' }}>{part}</span>;
+                                    }
+                                    return <span key={i}>{part}</span>;
+                                });
+                            })()}
+                        </div>
                     )}
                     <button
                         onClick={() => setExpanded(false)}
@@ -141,7 +165,8 @@ const DraggableBot = ({ currentText, onScan, scanResult }) => {
                             border: '1px solid white',
                             color: 'white',
                             borderRadius: '5px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            fontSize: '1rem'
                         }}
                     >
                         Close

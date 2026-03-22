@@ -2,9 +2,7 @@ import os
 import json
 import re
 import datetime
-from pymongo import MongoClient
 from dotenv import load_dotenv
-import certifi
 
 load_dotenv()
 
@@ -80,46 +78,7 @@ def cleanup():
         except Exception as e:
             print(f"❌ Error cleaning local file: {e}")
 
-    # 2. Cleanup MongoDB
-    try:
-        mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/?serverSelectionTimeoutMS=2000')
-        client = MongoClient(mongo_uri, tlsCAFile=certifi.where(), tlsAllowInvalidCertificates=True, serverSelectionTimeoutMS=5000)
-        db = client['phishing_db']
-        reports_collection = db['reports']
-
-        print("Checking MongoDB for duplicates and boilerplate...")
-        client.admin.command('ping')
-        
-        mongo_reports = list(reports_collection.find())
-        total_mongo = len(mongo_reports)
-        
-        if total_mongo > 0:
-            unique_mongo = {}
-            count_boilerplate_mongo = 0
-            mongo_reports.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-
-            for r in mongo_reports:
-                content = r.get('content', '')
-                if is_boilerplate(content):
-                    count_boilerplate_mongo += 1
-                    continue
-
-                platform = r.get('platform', 'Unknown')
-                norm = normalize_for_dedupe(content)
-                key = (platform, norm)
-                
-                if key not in unique_mongo:
-                    unique_mongo[key] = r
-
-            reports_collection.delete_many({})
-            if unique_mongo:
-                reports_collection.insert_many(list(unique_mongo.values()))
-            
-            print(f"✅ MongoDB: Removed {count_boilerplate_mongo} boilerplate logs and {total_mongo - len(unique_mongo) - count_boilerplate_mongo} standard duplicates.")
-        else:
-            print("✅ MongoDB is empty.")
-    except Exception as e:
-        print(f"⚠️ MongoDB Cleanup Skipped: {e}")
+    # MongoDB cleanup removed
 
 if __name__ == "__main__":
     cleanup()

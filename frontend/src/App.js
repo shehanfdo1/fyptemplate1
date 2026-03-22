@@ -12,20 +12,24 @@ import BackgroundAnimation from './components/BackgroundAnimation';
 import './styles/App.css';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [username, setUsername] = useState(localStorage.getItem('username') || null);
 
   useEffect(() => {
-    // Listen for changes in local storage or handle token state
-    const checkToken = () => setToken(localStorage.getItem('token'));
-    window.addEventListener('storage', checkToken);
-    return () => window.removeEventListener('storage', checkToken);
+    const handleStorageChange = () => {
+      setToken(localStorage.getItem('token'));
+      setUsername(localStorage.getItem('username'));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     setToken(null);
-    window.location.href = '/login';
+    setUsername(null);
+    window.location.href = '/';
   };
 
   return (
@@ -35,37 +39,34 @@ function App() {
         <div className="logo">SecureLink</div>
         <nav>
           <Link to="/">Home</Link>
+          <Link to="/detector">Phishing Detector</Link>
+          <Link to="/live">Live Monitor</Link>
+          <Link to="/reports">Reports</Link>
+          
           {token ? (
             <>
-                <Link to="/detector">Phishing Detector</Link>
-                <Link to="/live">Live Monitor</Link>
-                <Link to="/reports">Reports</Link>
-              <button onClick={handleLogout} style={{ marginLeft: '10px', background: 'none', border: '1px solid white', color: 'white', cursor: 'pointer' }}>Logout</button>
+               <span style={{ color: '#aaa', marginLeft: '10px' }}>{username}</span>
+               <button onClick={handleLogout} style={{ background: 'transparent', color: '#ff6b6b', border: '1px solid #ff6b6b', padding: '5px 10px', borderRadius: '5px', marginLeft: '10px', cursor: 'pointer' }}>Logout</button>
             </>
           ) : (
-            <Link to="/login">Login/Register</Link>
+            <>
+               <Link to="/login" style={{ marginLeft: '10px', border: '1px solid #4ade80', padding: '5px 10px', borderRadius: '5px' }}>Login</Link>
+               <Link to="/register" style={{ background: '#4ade80', color: '#1e293b', padding: '5px 10px', borderRadius: '5px', marginLeft: '10px' }}>Register</Link>
+            </>
           )}
         </nav>
       </header>
 
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/extension-setup" element={<ExtensionSetup />} />
+        <Route path="/detector" element={<Detector />} />
+        <Route path="/live" element={token ? <LiveMonitor /> : <Navigate to="/login" />} />
+        <Route path="/reports" element={token ? <Reports /> : <Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/extension-setup" element={<ExtensionSetup />} />
-        {/* Protect /detector route */}
-        <Route
-          path="/detector"
-          element={token ? <Detector /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/live"
-          element={token ? <LiveMonitor /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/reports"
-          element={token ? <Reports /> : <Navigate to="/login" />}
-        />
+        {/* Redirect any unknown routes to home */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );

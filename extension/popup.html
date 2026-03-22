@@ -9,6 +9,15 @@
 <body>
     <h3>Phishing Detector</h3>
     <p>Status: <span class="status">Active</span></p>
-    <p><small>Navigate to Telegram or Discord Web to see the scan button.</small></p>
+    
+    <div style="margin-top: 15px; border-top: 1px solid #ccc; padding-top: 10px;">
+        <label style="font-size: 12px; font-weight: bold;">Dashboard Username:</label><br>
+        <input type="text" id="username_input" placeholder="e.g. johndoe" style="width: 80%; padding: 5px; margin-top: 5px;">
+        <br>
+        <button id="save_btn" style="margin-top: 10px; padding: 5px 15px; cursor: pointer;">Save</button>
+    </div>
+
+    <p><small style="margin-top: 10px; display: block;">Navigate to Telegram or Discord Web.</small></p>
+    <script src="popup.js"></script>
 </body>
 </html>

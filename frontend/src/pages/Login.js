@@ -21,6 +21,19 @@ function Login() {
             if (response.ok) {
                 localStorage.setItem('token', data.access_token);
                 localStorage.setItem('username', data.username);
+                
+                // Auto-start bots silently
+                const startBot = (platform) => {
+                    fetch(`${config.API_BASE_URL}/api/listeners/start`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.access_token}` },
+                        body: JSON.stringify({ platform, token: 'env-token' })
+                    }).catch(err => console.error(`Auto-bot ${platform} start failed`, err));
+                };
+                startBot('discord');
+                startBot('telegram');
+                startBot('gmail');
+                
                 window.location.href = '/detector';
             } else {
                 setError(data.error);
