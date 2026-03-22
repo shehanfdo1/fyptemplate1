@@ -41,19 +41,31 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 315360000 # 10 years in seconds (approx
 
 # MySQL Configuration
 MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
 MYSQL_USER = os.getenv('MYSQL_USER', 'root')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
 MYSQL_DB = os.getenv('MYSQL_DB', 'phishing_db')
 
 def get_db_connection():
     try:
-        return pymysql.connect(
-            host=MYSQL_HOST,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
-            database=MYSQL_DB,
-            cursorclass=pymysql.cursors.DictCursor
-        )
+        # Aiven and other managed MySQL often require SSL
+        use_ssl = MYSQL_HOST != 'localhost'
+        
+        connection_args = {
+            'host': MYSQL_HOST,
+            'port': MYSQL_PORT,
+            'user': MYSQL_USER,
+            'password': MYSQL_PASSWORD,
+            'database': MYSQL_DB,
+            'cursorclass': pymysql.cursors.DictCursor,
+            'connect_timeout': 10
+        }
+        
+        if use_ssl:
+            # General SSL support for cloud databases
+            connection_args['ssl'] = {'ssl_verify_id': False} 
+            
+        return pymysql.connect(**connection_args)
     except Exception as e:
         print(f"⚠️ MySQL Connection Failed: {e}")
         return None
