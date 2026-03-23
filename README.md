@@ -1,7 +1,5 @@
 # 🛡️ SecureLink: Advanced Phishing Detector
 
-![SecureLink Banner](./banner.png)
-
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-success?logo=vercel)](https://fyptemplate1-jbw4.vercel.app/)
 [![React](https://img.shields.io/badge/Frontend-React-blue?logo=react)](https://reactjs.org/)
 [![Python](https://img.shields.io/badge/Backend-Python-yellow?logo=python)](https://www.python.org/)
