@@ -1,7 +1,7 @@
 // background.js
 console.log("Background Service Worker Loaded");
 
-const BACKEND_URL = "http://localhost:5000/predict";
+const BACKEND_URL = "https://fyptemplate1-1.onrender.com/predict";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "scanText") {

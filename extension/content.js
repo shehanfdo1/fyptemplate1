@@ -1,7 +1,7 @@
 // content.js
 console.log("Phishing Detector Helper Loaded v2.4");
 
-const BACKEND_URL = "http://localhost:5000/predict";
+const BACKEND_URL = "https://fyptemplate1-1.onrender.com/predict";
 let isScanning = false;
 let lastScannedText = "";
 let debounceTimer = null;

@@ -1,5 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
 
 # app.py
 import os

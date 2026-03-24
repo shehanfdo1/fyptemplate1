@@ -98,7 +98,7 @@ class TelegramMonitor:
             self.app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), process_update))
             
             print("✅ Telegram Bot polling started")
-            self.app.run_polling()
+            self.app.run_polling(close_loop=False, stop_signals=None)
 
         self.thread = threading.Thread(target=run_loop, daemon=True)
         self.thread.start()
