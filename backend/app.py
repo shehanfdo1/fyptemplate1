@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 # app.py
 import os
 from flask import Flask, request, jsonify

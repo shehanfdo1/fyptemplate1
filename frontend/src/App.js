@@ -61,8 +61,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/extension-setup" element={<ExtensionSetup />} />
         <Route path="/detector" element={<Detector />} />
-        <Route path="/live" element={token ? <LiveMonitor /> : <Navigate to="/login" />} />
-        <Route path="/reports" element={token ? <Reports /> : <Navigate to="/login" />} />
+        <Route path="/live" element={localStorage.getItem('token') ? <LiveMonitor /> : <Navigate to="/login" />} />
+        <Route path="/reports" element={localStorage.getItem('token') ? <Reports /> : <Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         {/* Redirect any unknown routes to home */}

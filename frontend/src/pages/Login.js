@@ -22,8 +22,8 @@ function Login() {
                 localStorage.setItem('token', data.access_token);
                 localStorage.setItem('username', data.username);
                 
-                // Use navigate for better routing compatibility on Vercel
-                navigate('/detector');
+                // Force a full refresh so App.js picks up the new token
+                window.location.href = '/detector';
             } else {
                 setError(data.error);
             }
